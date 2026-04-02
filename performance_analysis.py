@@ -11,6 +11,7 @@ PERF_RESULT_DIR = os.path.join(RESULT_ROOT_DIR, "performance_results")
 SMALL_COMPARE_DIR = os.path.join(PERF_RESULT_DIR, "small_scale_comparison")
 ALL_CASES_DIR = os.path.join(PERF_RESULT_DIR, "all_cases_heuristic")
 LEGACY_RESULT_DIR = RESULT_ROOT_DIR
+INSTANCE_DIR = "test_instances"
 
 os.makedirs(PERF_RESULT_DIR, exist_ok=True)
 os.makedirs(SMALL_COMPARE_DIR, exist_ok=True)
@@ -29,6 +30,32 @@ def resolve_input_path(file_name: str) -> str:
     raise FileNotFoundError(
         f"未找到输入文件: {file_name}。请先运行 main.py / src/brute_force.py 生成算法结果。"
     )
+
+
+def get_edge_count_from_instance(file_name: str):
+    """从同名JSON实例中读取边数m；读取失败时返回None。"""
+    json_name = file_name.replace(".txt", ".json")
+    json_path = os.path.join(INSTANCE_DIR, json_name)
+    if not os.path.exists(json_path):
+        return None
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        params = data.get("parameters", {}) if isinstance(data, dict) else {}
+        m_value = params.get("m")
+
+        if m_value is not None:
+            return int(m_value)
+
+        edges = data.get("edges") if isinstance(data, dict) else None
+        if isinstance(edges, list):
+            return len(edges)
+    except (ValueError, TypeError, json.JSONDecodeError, OSError):
+        return None
+
+    return None
 
 # ---------------------- 字体配置（解决中文乱码）----------------------
 candidate_fonts = [
@@ -96,12 +123,15 @@ heuristic_all_df["实例编号"] = pd.to_numeric(
     heuristic_all_df["文件名"].astype(str).str.extract(r"instance_(\d+)")[0],
     errors="coerce",
 )
+heuristic_all_df["边数m_num"] = heuristic_all_df["文件名"].astype(str).map(get_edge_count_from_instance)
+heuristic_all_df["边数m_num"] = pd.to_numeric(heuristic_all_df["边数m_num"], errors="coerce")
 
 heuristic_all_df = heuristic_all_df.sort_values(by=["实例编号", "文件名"], na_position="last")
 
 heuristic_valid_df = heuristic_all_df[
     (heuristic_all_df["是否有效_bool"]) &
     (heuristic_all_df["顶点数_num"].notna()) &
+    (heuristic_all_df["边数m_num"].notna()) &
     (heuristic_all_df["启发式解_num"].notna()) &
     (heuristic_all_df["运行时间_num"].notna()) &
     (heuristic_all_df["启发式解_num"] >= 0) &
@@ -110,9 +140,10 @@ heuristic_valid_df = heuristic_all_df[
 
 all_cases_table_path = os.path.join(ALL_CASES_DIR, "heuristic_all_cases.csv")
 heuristic_valid_df[[
-    "文件名", "实例编号", "顶点数_num", "标签数_num", "启发式解_num", "运行时间_num", "是否有效_bool"
+    "文件名", "实例编号", "顶点数_num", "边数m_num", "标签数_num", "启发式解_num", "运行时间_num", "是否有效_bool"
 ]].rename(columns={
     "顶点数_num": "顶点数n",
+    "边数m_num": "边数m",
     "标签数_num": "标签数q",
     "启发式解_num": "启发式割集大小",
     "运行时间_num": "运行时间(s)",
@@ -325,6 +356,30 @@ plt.colorbar(label="解精度(%)")
 runtime_vs_n_path = os.path.join(SMALL_COMPARE_DIR, "runtime_vs_n_scatter.png")
 save_fig(runtime_vs_n_path)
 
+# 图4-2：中大规模实例 运行时间-边数m 散点图
+mid_large_df = heuristic_valid_df[heuristic_valid_df["顶点数_num"] >= 20].copy()
+if not mid_large_df.empty:
+    plt.figure(figsize=(8.5, 5))
+    sizes_m = [35 + 8 * val for val in mid_large_df["标签数_num"].fillna(0)]
+    plt.scatter(
+        mid_large_df["边数m_num"],
+        mid_large_df["运行时间_num"],
+        s=sizes_m,
+        c=mid_large_df["顶点数_num"],
+        cmap="YlOrRd",
+        alpha=0.85,
+        edgecolors="#2f2f2f",
+        linewidths=0.5,
+    )
+    plt.xlabel("边数 m")
+    plt.ylabel("运行时间 (s)")
+    plt.title("中大规模实例运行时间与边数关系（颜色=顶点数n，点大小=标签数q）")
+    plt.colorbar(label="顶点数 n")
+    runtime_vs_m_path = os.path.join(ALL_CASES_DIR, "runtime_vs_m_scatter.png")
+    save_fig(runtime_vs_m_path)
+else:
+    runtime_vs_m_path = "未生成（中大规模有效实例为空）"
+
 # 图5：命中最优解比例环图
 hit_count = int(df["是否命中最优解"].sum())
 miss_count = int(len(df) - hit_count)
@@ -361,3 +416,4 @@ print(f"8. {all_cases_table_path}    (全测试用例数据表)")
 print(f"9. {all_runtime_line_path}    (全测试用例运行时间图)")
 print(f"10. {all_cutsize_bar_path}    (全测试用例割集大小图)")
 print(f"11. {group_perf_path}    (按规模分组表现图)")
+print(f"12. {runtime_vs_m_path}    (中大规模时间-边数散点图)")

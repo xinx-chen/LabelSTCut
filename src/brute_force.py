@@ -105,7 +105,7 @@ def brute_force_optimal_cut(graph: LabeledGraph, s: int, t: int) -> tuple[int, l
 
 def save_brute_force_results(all_results: list):
     """保存所有小规模实例的枚举结果（追加模式，避免覆盖）"""
-    RESULT_DIR.mkdir(exist_ok=True)
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
     
     # 读取历史结果
     existing_results = []
