@@ -1,0 +1,35 @@
+{
+  "instance_count": 35,
+  "small_scale_threshold": 15,
+  "avg_optimal_cut_size": 2.6571,
+  "avg_runtime_s": 0.003912,
+  "max_runtime_s": 0.051152,
+  "min_runtime_s": 2.6e-05,
+  "by_n": {
+    "5": {
+      "count": 8,
+      "avg_optimal_cut_size": 1.375,
+      "avg_runtime_s": 8.7e-05
+    },
+    "8": {
+      "count": 8,
+      "avg_optimal_cut_size": 2.5,
+      "avg_runtime_s": 0.000713
+    },
+    "10": {
+      "count": 7,
+      "avg_optimal_cut_size": 2.8571,
+      "avg_runtime_s": 0.002754
+    },
+    "12": {
+      "count": 7,
+      "avg_optimal_cut_size": 3.4286,
+      "avg_runtime_s": 0.01088
+    },
+    "15": {
+      "count": 5,
+      "avg_optimal_cut_size": 3.6,
+      "avg_runtime_s": 0.007013
+    }
+  }
+}

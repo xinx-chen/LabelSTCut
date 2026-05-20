@@ -7,6 +7,7 @@ from matplotlib.ticker import MaxNLocator
 
 RESULT_ROOT_DIR = "results"
 ALGO_RESULT_DIR = os.path.join(RESULT_ROOT_DIR, "algorithm_results")
+BRUTEFORCE_RESULT_DIR = os.path.join(RESULT_ROOT_DIR, "bruteforce_results")
 PERF_RESULT_DIR = os.path.join(RESULT_ROOT_DIR, "performance_results")
 SMALL_COMPARE_DIR = os.path.join(PERF_RESULT_DIR, "small_scale_comparison")
 ALL_CASES_DIR = os.path.join(PERF_RESULT_DIR, "all_cases_heuristic")
@@ -90,17 +91,32 @@ plt.rcParams["grid.alpha"] = 0.25
 plt.rcParams["grid.linestyle"] = "--"
 
 # ---------------------- 1. 读取你的结果文件 ----------------------
-# 读取暴力最优解
-optimal_result_path = resolve_input_path("brute_force_optimal_results.json")
-with open(optimal_result_path, "r", encoding="utf-8") as f:
-    optimal_list = json.load(f)
+# 从独立枚举目录读取暴力最优解（复用 brute_force_visualize.py 产物）
+bruteforce_csv_path = os.path.join(BRUTEFORCE_RESULT_DIR, "brute_force_results_detailed.csv")
+if not os.path.exists(bruteforce_csv_path):
+    raise FileNotFoundError(
+        f"未找到输入文件: {bruteforce_csv_path}。请先运行 brute_force_visualize.py 生成枚举结果。"
+    )
+
+optimal_df = pd.read_csv(bruteforce_csv_path, encoding="utf-8-sig")
+optimal_df["optimal_cut_size"] = pd.to_numeric(optimal_df["optimal_cut_size"], errors="coerce")
+if "run_time_s" in optimal_df.columns:
+    optimal_df["run_time_s"] = pd.to_numeric(optimal_df["run_time_s"], errors="coerce")
+optimal_df = optimal_df.dropna(subset=["instance_name", "optimal_cut_size"])
+optimal_df = optimal_df.drop_duplicates(subset=["instance_name"], keep="last")
 
 # 将最优结果转换成字典，便于按实例名查询
 optimal_map = {
-    item["instance_name"]: item["optimal_cut_size"]
-    for item in optimal_list
-    if "instance_name" in item and "optimal_cut_size" in item
+    row["instance_name"]: int(row["optimal_cut_size"])
+    for _, row in optimal_df.iterrows()
 }
+bruteforce_time_map = {}
+if "run_time_s" in optimal_df.columns:
+    bruteforce_time_map = {
+        row["instance_name"]: float(row["run_time_s"])
+        for _, row in optimal_df.iterrows()
+        if pd.notna(row["run_time_s"]) and float(row["run_time_s"]) >= 0
+    }
 
 # 读取启发式算法日志（CSV格式）
 heuristic_log_path = resolve_input_path("test_log.txt")
@@ -164,6 +180,7 @@ for idx, row in heuristic_df.iterrows():
         heuristic_time = row["运行时间"]
         n_value = row["顶点数"]
         optimal_size = optimal_map[filename]
+        brute_time = bruteforce_time_map.get(filename)
 
         if pd.isna(heuristic_size) or pd.isna(heuristic_time) or pd.isna(n_value):
             continue
@@ -176,7 +193,6 @@ for idx, row in heuristic_df.iterrows():
             continue
 
         # 计算核心性能指标
-        accuracy = round(optimal_size / heuristic_size * 100, 2)
         approx_ratio = round(heuristic_size / optimal_size, 2)
         is_optimal = 1 if heuristic_size == optimal_size else 0
 
@@ -185,9 +201,9 @@ for idx, row in heuristic_df.iterrows():
             "顶点数n": n_value,
             "最优解标签数": optimal_size,
             "启发式解标签数": heuristic_size,
-            "解精度(%)": accuracy,
             "近似比": approx_ratio,
             "启发式时间(s)": heuristic_time,
+            "暴力时间(s)": round(float(brute_time), 6) if brute_time is not None else None,
             "是否命中最优解": is_optimal
         })
 
@@ -203,19 +219,16 @@ if total == 0:
         "小规模实例总数": 0,
         "最优解命中数": 0,
         "最优命中率(%)": 0.0,
-        "平均解精度(%)": 0.0,
         "平均近似比": 0.0,
     }
 else:
     hit_optimal = int(compare_df["是否命中最优解"].sum())
-    avg_accuracy = float(compare_df["解精度(%)"].mean())
     avg_approx = float(compare_df["近似比"].mean())
 
     summary = {
         "小规模实例总数": total,
         "最优解命中数": hit_optimal,
         "最优命中率(%)": round(hit_optimal / total * 100, 2),
-        "平均解精度(%)": round(avg_accuracy, 2),
         "平均近似比": round(avg_approx, 2),
     }
 
@@ -313,36 +326,82 @@ plt.legend()
 cut_size_fig_path = os.path.join(SMALL_COMPARE_DIR, "cut_size_compare.png")
 save_fig(cut_size_fig_path)
 
-# 图2：解精度分布直方图
-plt.figure(figsize=(8, 4.8))
-plt.hist(df["解精度(%)"], bins=10, color="#F18F01")
-plt.xlabel("解精度(%)")
+# 图4-2：近似比区间分布图
+ratio_values = df["近似比"].astype(float)
+ratio_distribution = {
+    "1.00": int((ratio_values == 1.0).sum()),
+    "(1.0, 1.5]": int(((ratio_values > 1.0) & (ratio_values <= 1.5)).sum()),
+    "(1.5, 2.0]": int(((ratio_values > 1.5) & (ratio_values <= 2.0)).sum()),
+    "> 2.0": int((ratio_values > 2.0).sum()),
+}
+
+plt.figure(figsize=(8.5, 5.2))
+bars = plt.bar(
+    list(ratio_distribution.keys()),
+    list(ratio_distribution.values()),
+    color=["#2E8B57", "#4C956C", "#D9923B", "#C44E52"],
+    edgecolor="#2f2f2f",
+    linewidth=0.6,
+)
+plt.xlabel("近似比区间")
 plt.ylabel("实例数量")
-plt.title("启发式算法解精度分布")
-accuracy_fig_path = os.path.join(SMALL_COMPARE_DIR, "accuracy_distribute.png")
-save_fig(accuracy_fig_path)
+plt.title("小规模实例近似比分布图")
+plt.ylim(0, max(ratio_distribution.values()) + 2)
+for bar in bars:
+    height = bar.get_height()
+    plt.text(
+        bar.get_x() + bar.get_width() / 2,
+        height + 0.15,
+        f"{int(height)}",
+        ha="center",
+        va="bottom",
+        fontsize=9,
+    )
+approx_ratio_dist_path = os.path.join(SMALL_COMPARE_DIR, "approx_ratio_distribution_bar.png")
+save_fig(approx_ratio_dist_path)
 
-# 图3：按实例的解精度条形图
-plt.figure(figsize=(12, 6))
-colors = ["#2E8B57" if v >= 100 else "#D2691E" for v in df["解精度(%)"]]
-plt.bar(range(len(df)), df["解精度(%)"], color=colors, edgecolor="#444444", linewidth=0.4)
-plt.axhline(100, color="#8B1A1A", linestyle="--", linewidth=1.2, label="最优解水平(100%)")
-plt.xlabel("测试实例")
-plt.ylabel("解精度(%)")
-plt.title("各实例解精度对比")
-plt.xticks(range(len(df)), instance_labels, rotation=55, ha="right", fontsize=8)
-plt.legend(loc="lower right")
-accuracy_by_instance_path = os.path.join(SMALL_COMPARE_DIR, "accuracy_by_instance.png")
-save_fig(accuracy_by_instance_path)
+# 图3：小规模实例双算法运行时间同图对比
+runtime_compare_df = df.dropna(subset=["启发式时间(s)", "暴力时间(s)"]).copy()
+if not runtime_compare_df.empty:
+    plt.figure(figsize=(12, 6))
+    x_runtime = range(len(runtime_compare_df))
+    width = 0.42
+    plt.bar(
+        [i - width / 2 for i in x_runtime],
+        runtime_compare_df["启发式时间(s)"],
+        width=width,
+        label="启发式算法",
+        color="#1F77B4",
+    )
+    plt.bar(
+        [i + width / 2 for i in x_runtime],
+        runtime_compare_df["暴力时间(s)"],
+        width=width,
+        label="暴力枚举",
+        color="#E07A5F",
+    )
+    labels_runtime = [
+        name.replace("instance_", "i")
+        for name in runtime_compare_df["实例名称"].tolist()
+    ]
+    plt.xlabel("测试实例")
+    plt.ylabel("运行时间 (s)")
+    plt.title("小规模实例双算法运行时间对比")
+    plt.xticks(list(x_runtime), labels_runtime, rotation=55, ha="right", fontsize=8)
+    plt.legend()
+    runtime_dual_compare_path = os.path.join(SMALL_COMPARE_DIR, "runtime_dual_compare_bar.png")
+    save_fig(runtime_dual_compare_path)
+else:
+    runtime_dual_compare_path = "未生成（缺少双算法同实例运行时间）"
 
-# 图4：规模-运行时间散点图（越右越大规模）
+# 图2：规模-运行时间散点图（越右越大规模）
 plt.figure(figsize=(8.5, 5))
-sizes = [40 + 15 * val for val in df["近似比"]]
+sizes = [40 + 4 * val for val in df["启发式解标签数"]]
 plt.scatter(
     df["顶点数n"],
     df["启发式时间(s)"],
     s=sizes,
-    c=df["解精度(%)"],
+    c=df["近似比"],
     cmap="YlGnBu",
     alpha=0.85,
     edgecolors="#2f2f2f",
@@ -351,8 +410,8 @@ plt.scatter(
 plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
 plt.xlabel("顶点数 n")
 plt.ylabel("启发式时间 (s)")
-plt.title("问题规模与运行时间关系（颜色=解精度，点大小=近似比）")
-plt.colorbar(label="解精度(%)")
+plt.title("问题规模与运行时间关系（颜色=近似比，点大小=启发式解）")
+plt.colorbar(label="近似比")
 runtime_vs_n_path = os.path.join(SMALL_COMPARE_DIR, "runtime_vs_n_scatter.png")
 save_fig(runtime_vs_n_path)
 
@@ -408,8 +467,8 @@ print("\n✅ 已生成文件：")
 print(f"1. {comparison_path}  (详细对比表)")
 print(f"2. {summary_path}   (性能汇总)")
 print(f"3. {cut_size_fig_path}       (解大小对比图)")
-print(f"4. {accuracy_fig_path}    (精度分布图)")
-print(f"5. {accuracy_by_instance_path}    (实例精度条形图)")
+print(f"4. {approx_ratio_dist_path}    (近似比分布图)")
+print(f"5. {runtime_dual_compare_path}    (双算法运行时间对比图)")
 print(f"6. {runtime_vs_n_path}    (规模-时间散点图)")
 print(f"7. {optimal_hit_rate_path}    (最优命中率环图)")
 print(f"8. {all_cases_table_path}    (全测试用例数据表)")

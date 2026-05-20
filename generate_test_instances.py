@@ -3,11 +3,21 @@ import json
 import os
 import networkx as nx
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 
 # ===================== 固定随机种子 =====================
 random.seed(50)
 # 设置matplotlib随机种子确保绘图一致性
-plt.rcParams['font.sans-serif'] = ['DejaVu Sans']  # 确保标签显示正常
+candidate_fonts = [
+    "PingFang SC", "Hiragino Sans GB", "Heiti SC", "STHeiti", "Songti SC",
+    "Arial Unicode MS", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Zen Hei"
+]
+available_fonts = {f.name for f in font_manager.fontManager.ttflist}
+chosen_font = next((name for name in candidate_fonts if name in available_fonts), None)
+if chosen_font:
+    plt.rcParams['font.sans-serif'] = [chosen_font]
+else:
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 # ===================== 100个测试实例参数设计（学术标准版，增强可信度） =====================
 INSTANCES = [
@@ -219,13 +229,13 @@ def plot_instance(params, labeled_edges):
     )
     
     # 添加图例和标题
-    plt.title(f'Test Instance: {name}\nn={n}, |E|={len(edge_list)}', fontsize=14, pad=20)
+    plt.title(f'测试实例: {name}\nn={n}, |E|={len(edge_list)}', fontsize=14, pad=20)
     plt.legend(
         handles=[
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='lightblue', markersize=10, label='Normal Node'),
-            plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='red', markersize=10, label=f'Source (s={s})'),
-            plt.Line2D([0], [0], marker='^', color='w', markerfacecolor='green', markersize=10, label=f'Target (t={t})'),
-            plt.Line2D([0], [0], color='darkred', linewidth=1, label='Edge Label')
+            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='lightblue', markersize=10, label='普通节点'),
+            plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='red', markersize=10, label=f'源点 (s={s})'),
+            plt.Line2D([0], [0], marker='^', color='w', markerfacecolor='green', markersize=10, label=f'汇点 (t={t})'),
+            plt.Line2D([0], [0], color='darkred', linewidth=1, label='边标签')
         ],
         loc='upper right',
         frameon=True

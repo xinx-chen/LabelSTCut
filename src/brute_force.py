@@ -5,6 +5,7 @@
 import itertools
 import json
 import os
+import re
 import sys
 import traceback
 import math
@@ -14,15 +15,15 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 sys.path.append(str(PROJECT_ROOT))
 from src.graph_base import LabeledGraph  
+from src.config import SMALL_SCALE_THRESHOLD
 
 # ===================== 配置项 =====================
 INSTANCE_DIR = PROJECT_ROOT / "test_instances"  # 测试实例文件夹
 RESULT_DIR = PROJECT_ROOT / "results" / "algorithm_results"  # 枚举+启发式结果目录
-SMALL_SCALE_THRESHOLD = 35                     # 小规模实例阈值（仅处理n≤35的实例）
 RESULT_FILE = RESULT_DIR / "brute_force_optimal_results.json"  # 结果文件路径
 
 def read_test_instance(file_path: str) -> tuple[LabeledGraph, int, int]:
-    """读取测试实例TXT文件（复用main.py逻辑+增强异常处理）"""
+    """读取测试实例TXT文件"""
     try:
         graph = LabeledGraph()
         s = 0
@@ -172,9 +173,14 @@ def run_brute_force(instance_path: str = None):
             return
         
         instance_files = []
-        target_n = {"n5", "n8", "n10", "n12", "n15"}
         for file in os.listdir(INSTANCE_DIR):
-            if file.endswith(".txt") and any(nt in file for nt in target_n):
+            if not file.endswith(".txt"):
+                continue
+            match = re.search(r"_n(\d+)_", file)
+            if not match:
+                continue
+            n_value = int(match.group(1))
+            if n_value <= SMALL_SCALE_THRESHOLD:
                 instance_files.append(str(INSTANCE_DIR / file))
         
         if not instance_files:

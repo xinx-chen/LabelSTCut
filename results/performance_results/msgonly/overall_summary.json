@@ -1,0 +1,12 @@
+{
+  "instances_total": 100,
+  "dual_win_rate_pct": 23.0,
+  "tie_rate_pct": 61.0,
+  "avg_improvement_pct": 2.409,
+  "avg_time_ratio_dual_vs_msg": 3.476,
+  "msg_valid_rate_pct": 100.0,
+  "dual_valid_rate_pct": 100.0,
+  "notes": {
+    "note": "与启发式算法的全规模测试保持同一批 test_instances/*.txt 实例"
+  }
+}
