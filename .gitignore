@@ -205,3 +205,18 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local envs and results
+my_env/
+.venv/
+results/
+test_instances/plots/
+*.png
+.DS_Store
+# Local envs and results
+my_env/
+.venv/
+results/
+test_instances/plots/
+*.png
+.DS_Store
